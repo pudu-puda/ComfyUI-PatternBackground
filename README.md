@@ -6,6 +6,11 @@ The patterns are drawn mathematically (no model, no extra dependencies), so they
 
 ![patterns](examples/patterns.jpg)
 
+![a character composited on patterns](examples/composite.jpg)
+
+A character cut out with `Remove Background` (ToonOut) and composited on `Pattern Background`.
+The character in this image is not covered by the MIT license. Please do not reuse it.
+
 ## Install
 
 Clone into `ComfyUI/custom_nodes/` and restart ComfyUI.
@@ -50,6 +55,8 @@ Put the file in `ComfyUI/models/background_removal/` and select it.
 
 キャラクターを ComfyUI 標準の `Remove Background` で切り抜いて重ねるための、平らな柄の背景を作るノードです。アニメ絵向けの切り抜きモデル ToonOut の配布ファイル（.pth）をそのまま読む `Load BiRefNet Checkpoint` も入っています。無地・ドット・ストライプ・方眼・ギンガムチェック・市松・集中線から選べます。計算で描くので、生成 AI を使わず一瞬で、毎回同じ柄が出ます。追加のライブラリは要りません。
 
+例の画像（examples/composite.jpg）のキャラクターは MIT ライセンスの対象外です。転用しないでください。
+
 ## License
 
-MIT
+MIT (code and `examples/patterns.jpg`). The character in `examples/composite.jpg` is not covered by the MIT license. Please do not reuse it.
