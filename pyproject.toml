@@ -1,0 +1,11 @@
+[project]
+name = "comfyui-patternbackground"
+description = "Flat pattern backgrounds (solid, dots, stripes, grid, gingham, checkerboard, focus lines) for compositing characters."
+version = "0.1.0"
+authors = [{ name = "pudu_23" }]
+license = { file = "LICENSE" }
+dependencies = []
+
+[project.urls]
+Repository = "https://github.com/pudu-puda/ComfyUI-PatternBackground"
+
