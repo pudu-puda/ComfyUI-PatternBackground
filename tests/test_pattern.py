@@ -56,3 +56,33 @@ def test_parse_color():
     assert np.allclose(P.parse_color("#fff"), [1, 1, 1])
     with pytest.raises(ValueError):
         P.parse_color("#12345")
+
+
+@pytest.mark.parametrize("name", ["border", "hearts", "stars"])
+def test_new_patterns_use_both_colors(name):
+    cov = P.coverage(name, 400, 300, spacing=80, thickness=0.6)
+    assert (cov > 0.99).mean() > 0.01
+    assert (cov < 0.01).mean() > 0.05
+
+
+def test_border_is_horizontal():
+    cov = P.coverage("border", 64, 640, spacing=64, thickness=0.25)
+    assert np.allclose(cov, cov[:, :1])  # the same along each row
+    assert abs(cov.mean() - 0.25) < 0.02
+
+
+@pytest.mark.parametrize("name", ["hearts", "stars"])
+def test_roundness_rounds_the_tips(name):
+    # rounding cuts the sharp tips, so a little less area is covered at the same size
+    sharp = P.coverage(name, 256, 256, spacing=128, thickness=0.7, roundness=0.0).mean()
+    round_ = P.coverage(name, 256, 256, spacing=128, thickness=0.7, roundness=1.0).mean()
+    assert sharp > 0.05 and round_ > 0.05 and sharp != round_
+
+
+def test_heart_points_down():
+    dy, dx = np.mgrid[-64:64, -64:64].astype(np.float32)
+    inside = P._motif_sd("hearts", dx, dy, 100.0, 0.6) < 0
+    rows = inside.sum(1)
+    filled = np.nonzero(rows)[0]
+    top, bottom = rows[filled[0]:filled[0] + 30], rows[filled[-1] - 10:filled[-1] + 1]
+    assert top.max() > 3 * bottom.max()  # wide lobes on top, narrow tip at the bottom

@@ -1,7 +1,7 @@
 [project]
 name = "comfyui-patternbackground"
-description = "Flat pattern backgrounds (solid, dots, stripes, grid, gingham, checkerboard, focus lines) for compositing characters."
-version = "0.1.0"
+description = "Flat pattern backgrounds (dots, stripes, border, grid, gingham, checkerboard, focus lines, hearts, stars) and frames for compositing characters; patterns and colors by seed, from cute palettes or from the character."
+version = "0.2.0"
 authors = [{ name = "pudu_23" }]
 license = { file = "LICENSE" }
 dependencies = []

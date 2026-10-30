@@ -16,7 +16,12 @@ PATTERNS = [
     "gingham",
     "checkerboard",
     "focus_lines",
+    # added in 1.1 (appended so saved workflows keep their choice)
+    "border",
+    "hearts",
+    "stars",
 ]
+MOTIFS = ("hearts", "stars")
 
 
 def parse_color(text):
@@ -64,6 +69,59 @@ def _dots(u, v, period, diameter, stagger):
     return cov
 
 
+def _sd_heart(x, y):
+    """Signed distance to a heart, tip at the origin, about 1.2 wide and 1.1 tall (y up). After Inigo Quilez."""
+    x = np.abs(x)
+    upper = np.sqrt((x - 0.25) ** 2 + (y - 0.75) ** 2) - math.sqrt(2.0) / 4.0
+    t = 0.5 * np.maximum(x + y, 0.0)
+    lower = np.sqrt(np.minimum(x * x + (y - 1.0) ** 2, (x - t) ** 2 + (y - t) ** 2)) * np.sign(x - y)
+    return np.where(x + y > 1.0, upper, lower)
+
+
+def _sd_star5(x, y, inner):
+    """Signed distance to a five-pointed star of outer radius 1, point up (y up). `inner` = inner/outer radius.
+    After Inigo Quilez."""
+    k1x, k1y = 0.809016994375, -0.587785252292
+    x = np.abs(x)
+    for kx, ky in ((k1x, k1y), (-k1x, k1y)):
+        m = np.maximum(kx * x + ky * y, 0.0)
+        x, y = x - 2.0 * m * kx, y - 2.0 * m * ky
+    x = np.abs(x)
+    y = y - 1.0
+    bax, bay = inner * -k1y - 0.0, inner * k1x - 1.0
+    h = np.clip((x * bax + y * bay) / (bax * bax + bay * bay), 0.0, 1.0)
+    return np.sqrt((x - bax * h) ** 2 + (y - bay * h) ** 2) * np.sign(y * bax - x * bay)
+
+
+def _motif_sd(kind, dx, dy, size, roundness):
+    """Signed distance in px to one motif `size` px wide centered at (0, 0); dy points down (image rows).
+    Roundness 0 keeps the mathematical shape; higher values round the tips and the dips (the shape is drawn
+    smaller and grown back by a radius, so the overall size stays about the same)."""
+    rnd = float(np.clip(roundness, 0.0, 1.0))
+    if kind == "hearts":
+        r = rnd * 0.16 * size
+        s = max(size - 2 * r, 1e-3) / 1.2
+        return _sd_heart(dx / s, -dy / s + 0.55) * s - r
+    if kind == "stars":
+        r = rnd * 0.10 * size
+        s = max(size / 2.0 - r, 1e-3) / 0.95
+        inner = 0.40 + 0.14 * rnd  # chubbier arms as it gets rounder
+        return _sd_star5(dx / s, -dy / s - 0.1, inner) * s - r
+    raise ValueError(kind)
+
+
+def _motifs(kind, u, v, period, size, stagger, roundness):
+    def lattice(ou, ov):
+        du = np.mod(u - ou, period) - period / 2.0
+        dv = np.mod(v - ov, period) - period / 2.0
+        return _motif_sd(kind, du, dv, size, roundness)
+
+    d = lattice(0.0, 0.0)
+    if stagger:
+        d = np.minimum(d, lattice(period / 2.0, period / 2.0))
+    return _aa(d)
+
+
 def _focus_lines(width, height, lines, inner_radius, center_x, center_y, thickness, seed):
     """Manga-style speed lines: thin wedges pointing at a center, clear area in the middle."""
     rng = np.random.default_rng(seed)
@@ -99,7 +157,7 @@ def _focus_lines(width, height, lines, inner_radius, center_x, center_y, thickne
 
 
 def coverage(pattern, width, height, spacing=64, thickness=0.5, angle=0.0, stagger=True,
-             lines=120, inner_radius=0.45, center_x=0.5, center_y=0.5, seed=0):
+             lines=120, inner_radius=0.45, center_x=0.5, center_y=0.5, seed=0, roundness=0.6):
     """Coverage map (H, W) float32 of the pattern color."""
     if pattern == "solid":
         return np.zeros((height, width), dtype=np.float32)
@@ -113,6 +171,10 @@ def coverage(pattern, width, height, spacing=64, thickness=0.5, angle=0.0, stagg
         return _dots(u, v, p, w, stagger)
     if pattern == "stripes":
         return _band(u, p, w)
+    if pattern == "border":  # horizontal stripes (stripes turned 90 degrees, kept as its own name)
+        return _band(v, p, w)
+    if pattern in MOTIFS:
+        return _motifs(pattern, u, v, p, w, stagger, roundness)
     if pattern == "grid":
         return np.maximum(_band(u, p, w), _band(v, p, w))
     if pattern == "gingham":
