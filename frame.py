@@ -31,10 +31,11 @@ def _sd_round_box(x, y, hw, hh, r):
 
 
 def _scallop_centers(hw, hh, bump):
-    """Bump centers along the straight edges of a (hw, hh) box, evenly spaced and meeting at the corners."""
+    """Bump centers on the edges of a (hw, hh) box: one on each corner, evenly spaced in between and close enough
+    that neighboring bumps overlap (so the box edge never shows between them)."""
     pts = []
     for half, other, horizontal in ((hw, hh, True), (hh, hw, False)):
-        n = max(2, int(round(2 * half / (bump * 1.7))))
+        n = max(2, int(np.ceil(2 * half / (bump * 0.95))))
         for t in np.linspace(-half, half, n + 1):
             for s in (-other, other):
                 pts.append((t, s) if horizontal else (s, t))
@@ -51,13 +52,14 @@ def window_sd(width, height, margin, corner_radius, style, bump, reach=64.0):
     hw, hh = width / 2.0 - margin, height / 2.0 - margin
     if hw <= 1 or hh <= 1:
         raise ValueError("margin is too large for the image")
-    d = _sd_round_box(x, y, hw, hh, corner_radius)
+    # scallop: square corners, the corner bumps make the four corners the same quarter circle
+    d = _sd_round_box(x, y, hw, hh, 0.0 if style == "scallop" else corner_radius)
     if style == "scallop":
-        r = bump / 2.0
+        r = min(bump / 2.0, min(hw, hh) * 0.25)  # huge deco sizes would eat the whole window
         dc = np.full_like(d, np.inf)
         # far inside the window the bumps barely change the line; cap the box so extreme settings stay bounded
         ext = int(np.ceil(min(r + reach, 4 * r + 64))) + 2
-        for cx, cy in _scallop_centers(hw - r * 0.35, hh - r * 0.35, bump):
+        for cx, cy in _scallop_centers(hw, hh, 2 * r):
             # pixel box around the bump (centered coordinates -> array indices)
             px, py = int(round(cx + (width - 1) / 2.0)), int(round(cy + (height - 1) / 2.0))
             ys, xs = slice(max(py - ext, 0), min(py + ext + 1, height)), slice(max(px - ext, 0), min(px + ext + 1, width))
@@ -65,7 +67,8 @@ def window_sd(width, height, margin, corner_radius, style, bump, reach=64.0):
                 continue
             local = np.sqrt((x[ys, xs] - cx) ** 2 + (y[ys, xs] - cy) ** 2) - r
             dc[ys, xs] = np.minimum(dc[ys, xs], local)
-        d = np.maximum(d - r * 0.35, -dc)  # the bumps eat into the window
+        # the bumps eat into the window; their outer halves lie on the band, so nothing shows outside the edge
+        d = np.maximum(d, -dc)
     return d
 
 
@@ -74,13 +77,15 @@ def render_frame(image, style="rounded", margin=28, corner_radius=36, line_width
                  roundness=0.8):
     """image (H, W, 3) float in [0, 1] -> (framed image, frame coverage (H, W))."""
     h, w = image.shape[:2]
-    bump = max(float(deco_size) * 0.6, 8.0)
+    bump = max(float(deco_size) * 0.9, 8.0)
     d = window_sd(w, h, margin, corner_radius, style, bump,
                   reach=line_gap + 3.5 * line_width + 4 + float(deco_size))
     band = _aa(-d)  # 1 on the frame
     lines = np.zeros_like(band)
     if style != "plain" and line_width > 0:
-        offsets = [line_gap] if style != "double_line" else [line_gap, line_gap + 2.5 * line_width]
+        # scallop: the line traces the bumps themselves (a line set inside would flatten them and leave
+        # round notches of the pattern outside it)
+        offsets = {"double_line": [line_gap, line_gap + 2.5 * line_width], "scallop": [0.0]}.get(style, [line_gap])
         for off in offsets:
             lines = np.maximum(lines, _aa(np.abs(d + off + line_width / 2.0) - line_width / 2.0))
     motifs = np.zeros_like(band)

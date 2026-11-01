@@ -140,3 +140,17 @@ def test_scallop_extreme_settings_are_bounded():
     F.render_frame(np.zeros((1024, 1024, 3), np.float32), style="scallop", margin=40, line_gap=512, line_width=256,
                    deco_size=4)
     assert time.time() - t < 20
+
+
+def test_scallop_corners_match_and_nothing_outside():
+    # the four corners are the same shape, and the window never reaches past the straight frame edge
+    d = F.window_sd(832, 1216, 28, 36, "scallop", 40.0, reach=64)
+    near = np.maximum(d, -40.0)  # bumps are computed only near the edge (see test_scallop_local_matches_full)
+    assert np.allclose(near, near[::-1, :], atol=1e-3) and np.allclose(near, near[:, ::-1], atol=1e-3)
+    assert (d[:28, :] > 0).all() and (d[:, :28] > 0).all()
+
+
+@pytest.mark.parametrize("w,h,deco", [(512, 512, 256), (1344, 704, 1024), (200, 200, 44)])
+def test_scallop_huge_bumps_keep_the_window(w, h, deco):
+    _, mask = F.render_frame(np.zeros((h, w, 3), np.float32), style="scallop", margin=8, deco_size=deco)
+    assert (mask < 0.5).mean() > 0.4
