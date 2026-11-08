@@ -20,6 +20,9 @@ PATTERNS = [
     "border",
     "hearts",
     "stars",
+    # added in 0.3 (appended so saved workflows keep their choice)
+    "gradient",
+    "halftone",
 ]
 MOTIFS = ("hearts", "stars")
 
@@ -122,6 +125,32 @@ def _motifs(kind, u, v, period, size, stagger, roundness):
     return _aa(d)
 
 
+def _ramp(u, thickness):
+    """0 -> 1 across the whole picture along u. thickness moves the middle: 0.5 = linear, larger = more of
+    the picture leans to the pattern color."""
+    t = (u - u.min()) / max(float(u.max() - u.min()), 1e-6)
+    mid = float(np.clip(1.0 - thickness, 0.02, 0.98))
+    return t ** (math.log(0.5) / math.log(mid)), t
+
+
+def _halftone(u, v, period, thickness, stagger):
+    """Dots on a grid whose size grows along u: none at one end, `thickness` x 1.4 x period at the other.
+    Each dot takes its size from its own cell center, so the dots stay round."""
+    u0, u1 = float(u.min()), float(u.max())
+    dmax = max(thickness, 0.0) * period * 1.4
+
+    def lattice(ou, ov):
+        cu = np.floor((u - ou) / period) * period + period / 2.0 + ou
+        cv = np.floor((v - ov) / period) * period + period / 2.0 + ov
+        t = np.clip((cu - u0) / max(u1 - u0, 1e-6), 0.0, 1.0)
+        return np.sqrt((u - cu) ** 2 + (v - cv) ** 2) - dmax * t / 2.0
+
+    d = lattice(0.0, 0.0)
+    if stagger:
+        d = np.minimum(d, lattice(period / 2.0, period / 2.0))
+    return _aa(d)
+
+
 def _focus_lines(width, height, lines, inner_radius, center_x, center_y, thickness, seed):
     """Manga-style speed lines: thin wedges pointing at a center, clear area in the middle."""
     rng = np.random.default_rng(seed)
@@ -175,6 +204,10 @@ def coverage(pattern, width, height, spacing=64, thickness=0.5, angle=0.0, stagg
         return _band(v, p, w)
     if pattern in MOTIFS:
         return _motifs(pattern, u, v, p, w, stagger, roundness)
+    if pattern == "gradient":  # angle: direction of the change (0 = left to right)
+        return _ramp(u, thickness)[0]
+    if pattern == "halftone":
+        return _halftone(u, v, p, thickness, stagger)
     if pattern == "grid":
         return np.maximum(_band(u, p, w), _band(v, p, w))
     if pattern == "gingham":

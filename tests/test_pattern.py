@@ -86,3 +86,30 @@ def test_heart_points_down():
     filled = np.nonzero(rows)[0]
     top, bottom = rows[filled[0]:filled[0] + 30], rows[filled[-1] - 10:filled[-1] + 1]
     assert top.max() > 3 * bottom.max()  # wide lobes on top, narrow tip at the bottom
+
+
+def test_gradient_goes_from_background_to_pattern():
+    cov = P.coverage("gradient", 200, 100, angle=0.0, thickness=0.5)
+    assert cov[:, 0].max() < 0.01 and cov[:, -1].min() > 0.99
+    assert np.all(np.diff(cov[50]) >= 0)  # never goes back
+    assert abs(cov[50, 100] - 0.5) < 0.02
+    more = P.coverage("gradient", 200, 100, angle=0.0, thickness=0.8)
+    assert more.mean() > cov.mean()
+
+
+def test_gradient_angle_90_is_top_to_bottom():
+    cov = P.coverage("gradient", 100, 200, angle=90.0)
+    assert cov[0].max() < 0.01 and cov[-1].min() > 0.99
+
+
+def test_halftone_dots_grow_along_the_direction():
+    cov = P.coverage("halftone", 600, 300, spacing=30, thickness=0.6, angle=0.0)
+    thirds = [cov[:, i * 200:(i + 1) * 200].mean() for i in range(3)]
+    assert thirds[0] < thirds[1] < thirds[2]
+    assert cov[:, :30].max() < 0.5  # the start has (almost) no dots
+
+
+def test_new_patterns_are_appended():
+    assert P.PATTERNS[:10] == ["solid", "dots", "stripes", "grid", "gingham", "checkerboard", "focus_lines",
+                               "border", "hearts", "stars"]
+    assert P.PATTERNS[10:] == ["gradient", "halftone"]
